@@ -16,10 +16,12 @@ Each step uses the inference mode its privacy needs, and the screen says where e
 |---|---|---|---|
 | Read the letter: insurer, plan type, dates, amounts, the reason, the people named | the raw letter | `ONLY_ON_DEVICE` | The raw letter is full of personal details. If Gemini Nano is not available, this step does not run in the cloud instead: the person sees a masked copy first (below). |
 | Find names in the person's own notes | their notes | `ONLY_ON_DEVICE` | Notes name people the letter does not (a relative, a therapist). |
-| Explain it in plain words | the masked letter | `PREFER_ON_DEVICE` | Already masked, so the cloud is a safe fallback. |
+| Explain it in plain words | the masked letter | `ONLY_ON_DEVICE` (or `ONLY_IN_CLOUD` after a yes, where there is no Gemini Nano) | Already masked, but the cloud still waits for the person's say-so. |
 | Draft the appeal letter | masked letter, masked notes, code meanings, rules | `PREFER_IN_CLOUD` | Writing a strong letter benefits from the larger model. With no network, the SDK falls back to Gemini Nano, which gets the same rules as a system prompt. |
 
-Silent fallback is avoided where it would matter: `PREFER_ON_DEVICE` sends a request to the cloud whenever the on-device model is merely "downloadable", so the private steps use `ONLY_ON_DEVICE` and call `initializeDeviceModel()` from the user's click.
+The cloud side (a second Firebase app with App Check and reCAPTCHA Enterprise) is created only when the person first agrees to use the cloud. Until then the page talks to no host but its own: no Google script, no request. That was checked in the browser's resource timing list on the live site.
+
+`PREFER_ON_DEVICE` is deliberately not used: it sends a request to the cloud whenever the on-device model is merely "downloadable", which is not acceptable for the raw letter. The private steps use `ONLY_ON_DEVICE` and call `initializeDeviceModel()` from the person's click. Browsers that expose the Prompt API but never answer it are detected with a timeout and get the masked cloud path.
 
 ## Masking
 

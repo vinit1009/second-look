@@ -184,7 +184,7 @@ function renderConsentToRead() {
           try {
             main.replaceChildren(h("section", { class: "working" }, h("h2", {}, "Reading the masked letter"), steps));
             progress("Reading the masked letter in the cloud");
-            const read = await readMaskedLetter(state.masked!.text, false);
+            const read = await readMaskedLetter(state.masked!.text);
             const facts = read.value;
             const back = (s: string) => fillBack(s, state.masked!.map).text;
             state.facts = { ...facts, notice_date: back(facts.notice_date), service_date: back(facts.service_date), provider: back(facts.provider), people: [] };
@@ -436,7 +436,7 @@ function renderLetter() {
       ),
       h("section", { class: "notes-col" },
         h("article", { class: "card" },
-          h("header", { class: "card-head" }, h("h2", {}, "How it was written"), badge(state.draftWhere, state.draftMs, state.draftWhere === "on_device" ? "Offline, so drafted on this device · Gemini Nano" : `From masked text, in the cloud · ${CLOUD_MODEL}`)),
+          h("header", { class: "card-head" }, h("h2", {}, "How it was written"), badge(state.draftWhere, state.draftMs, state.draftWhere === "on_device" ? `${navigator.onLine ? "Cloud unavailable" : "Offline"}, so drafted on this device · Gemini Nano` : `From masked text, in the cloud · ${CLOUD_MODEL}`)),
           h("p", {}, "Gemini saw only placeholders like [PATIENT_NAME]; your details were filled back in on this device."),
           back.unknown.length ? h("div", { class: "blanks" }, h("p", {}, h("strong", {}, "Fill these in before you send it:")), h("ul", {}, ...back.unknown.map((u) => h("li", {}, h("code", {}, u))))) : null,
         ),

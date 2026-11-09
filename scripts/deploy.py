@@ -20,12 +20,13 @@ API = "https://firebasehosting.googleapis.com/v1beta1"
 
 CSP = "; ".join([
     "default-src 'self'",
-    "script-src 'self'",
+    # reCAPTCHA Enterprise (App Check) loads only after the person agrees to use the cloud.
+    "script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "img-src 'self' data:",
     "connect-src 'self' https://*.googleapis.com https://www.google.com",
-    "frame-src https://www.google.com",
+    "frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/",
     "frame-ancestors 'none'",
     "base-uri 'none'",
     "form-action 'none'",
