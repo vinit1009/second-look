@@ -122,7 +122,7 @@ export function fillBack(text: string, map: Record<string, string>): { text: str
   // Known placeholders go back in; any other bracketed capitals ("[YOUR PHONE NUMBER]") are blanks
   // the writer left for the person to fill in.
   const out = text.replace(/\[[A-Z][A-Z_]*(?:_\d+)?\]/g, (ph) => (ph in map ? map[ph] : ph));
-  const unknown = new Set(out.match(/\[[A-Z][A-Z0-9 ,.'’/()_-]*[A-Z0-9)]\]/g) ?? []);
+  const unknown = new Set(out.match(/\[[A-Za-z][A-Za-z0-9 ,.'’/()_-]{1,70}\]/g) ?? []);
   return { text: out, unknown: [...unknown] };
 }
 

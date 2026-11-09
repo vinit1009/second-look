@@ -172,18 +172,22 @@ export function explain(maskedLetter: string): Promise<Answer<Explanation>> {
 
 // ---------- step 3: draft the appeal letter ----------
 
-const drafter: GenerativeModel = getGenerativeModel(ai, {
-  mode: InferenceMode.PREFER_IN_CLOUD,
-  onDeviceParams: { createOptions: TEXT_IO },
-  inCloudParams: {
-    model: CLOUD_MODEL,
-    generationConfig: { temperature: 0.4, maxOutputTokens: 1200 },
-    systemInstruction: `You write first-level appeal letters for people whose health insurance claim was denied, written in their own name.
+const DRAFT_RULES = `You write first-level appeal letters for people whose health insurance claim was denied, written in their own name.
 Rules:
 - Words in square brackets, like [PATIENT_NAME] or [CLAIM_NUMBER], stand for personal details. Copy them exactly as written, brackets included. Never guess what they hide.
 - Never invent facts or law: no made-up dates, numbers, diagnoses, treatments, quotes, laws or rules. Mention a rule only if it is in the list of rules you are given. Where the letter needs something you do not have, write a short bracketed blank in capitals for the person to fill in, like [YOUR PHONE NUMBER].
 - Structure: sender block, the date written as [TODAY], insurer, a "Re:" line with the member ID and claim number, the request for review, why the denial should be reversed (use the person's own points), what is enclosed, a request for the documents and criteria used in the decision, and a closing with their name.
-- Plain, polite and firm. Under 350 words. Plain text only, no markdown.`,
+- Address it to the insurer: "Dear Appeals Department,". It is signed by the person: [PATIENT_NAME] when that placeholder exists.
+- Plain, polite and firm. Under 350 words. Plain text only, no markdown.`;
+
+const drafter: GenerativeModel = getGenerativeModel(ai, {
+  mode: InferenceMode.PREFER_IN_CLOUD,
+  // Offline, Gemini Nano drafts instead; it gets the same rules as a system prompt.
+  onDeviceParams: { createOptions: { ...TEXT_IO, initialPrompts: [{ role: "system", content: [{ type: "text", value: DRAFT_RULES }] }] } },
+  inCloudParams: {
+    model: CLOUD_MODEL,
+    generationConfig: { temperature: 0.4, maxOutputTokens: 1200 },
+    systemInstruction: DRAFT_RULES,
   },
 });
 
@@ -214,7 +218,12 @@ What the person wants to say, in their own words:
 """
 ${d.maskedNotes || "(nothing added)"}
 """`;
-  return timed(drafter, prompt, (t) => t.trim());
+  return timed(drafter, prompt, (t) => plain(t));
+}
+
+/** Letters are plain text: drop markdown a model may add anyway. */
+export function plain(text: string): string {
+  return text.replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#{1,6}\s+/gm, "").replace(/^\s*[-*]\s+(?=\S)/gm, "- ").trim();
 }
 
 export function appealName(plan: PlanType): string {
