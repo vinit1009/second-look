@@ -220,7 +220,28 @@ export interface DraftInput {
   rights: string[];       // rule texts from official sources that may apply
 }
 
-export function draftAppeal(d: DraftInput): Promise<Answer<string>> {
+// Offline, the cloud side would first wait on App Check's reCAPTCHA script, which cannot load, before
+// the SDK falls back; drafting goes straight to Gemini Nano instead.
+const deviceDrafter: GenerativeModel = getGenerativeModel(deviceAI, {
+  mode: InferenceMode.ONLY_ON_DEVICE,
+  onDeviceParams: { createOptions: { ...TEXT_IO, initialPrompts: [{ role: "system", content: [{ type: "text", value: DRAFT_RULES }] }] } },
+});
+
+const CLOUD_PATIENCE_MS = 25_000;
+
+export async function draftAppeal(d: DraftInput): Promise<Answer<string>> {
+  const prompt = draftPrompt(d);
+  if (!navigator.onLine) return timed(deviceDrafter, prompt, plain);
+  const cloudTry = timed(cloud().drafter, prompt, plain);
+  const gaveUp = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), CLOUD_PATIENCE_MS));
+  const first = await Promise.race([cloudTry, gaveUp]);
+  if (first !== "timeout") return first;
+  cloudTry.catch(() => {}); // it may still fail later; the device draft below is what counts now
+  // Connected but stuck (a blocked network, a bot check that never finishes): write it here instead.
+  return timed(deviceDrafter, prompt, plain);
+}
+
+function draftPrompt(d: DraftInput): string {
   const prompt = `Write the appeal letter for this denial. Call it a ${d.appealName} (use those words in the first paragraph).
 
 The denial letter (personal details hidden):
@@ -238,7 +259,7 @@ What the person wants to say, in their own words:
 """
 ${d.maskedNotes || "(nothing added)"}
 """`;
-  return timed(cloud().drafter, prompt, (t) => plain(t));
+  return prompt;
 }
 
 /** Letters are plain text: drop markdown a model may add anyway. */
