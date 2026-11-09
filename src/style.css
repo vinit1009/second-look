@@ -25,10 +25,13 @@
 
 html { background: var(--paper); }
 
+html { font-size: 16px; }
+@media (min-width: 1700px) { html { font-size: 19px; } }
+
 body {
   margin: 0;
   color: var(--ink);
-  font: 400 17px/1.55 var(--body);
+  font: 400 1.0625rem/1.55 var(--body);
   background:
     radial-gradient(1200px 600px at 85% -10%, rgba(255, 216, 77, 0.16), transparent 60%),
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.35  0 0 0 0 0.3  0 0 0 0 0.22  0 0 0 .07 0'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>"),
@@ -46,11 +49,11 @@ a:hover { color: var(--ink); }
 
 .masthead {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
-  max-width: 1240px; margin: 0 auto; padding: 1.4rem 1.5rem 0.4rem;
+  max-width: 78rem; margin: 0 auto; padding: 1.4rem 1.5rem 0.4rem;
 }
 .brand { display: flex; align-items: center; gap: 0.65rem; }
 .mark {
-  width: 34px; height: 34px; border-radius: 9px; background: var(--ink); position: relative; flex: none;
+  width: 2.1rem; height: 2.1rem; border-radius: 9px; background: var(--ink); position: relative; flex: none;
   box-shadow: 3px 3px 0 var(--highlight);
 }
 .mark::before, .mark::after { content: ""; position: absolute; left: 8px; right: 8px; height: 3px; border-radius: 2px; background: var(--paper); }
@@ -68,8 +71,14 @@ a:hover { color: var(--ink); }
 .device[data-state="downloading"]::before { background: var(--highlight); animation: pulse 1.2s ease-in-out infinite; }
 .device[data-state="unavailable"] { color: var(--alert); }
 .device[data-state="unavailable"]::before { background: var(--alert); }
+.status { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.net {
+  margin: 0; font-size: 0.86rem; font-weight: 600; padding: 0.35rem 0.8rem; border-radius: 999px;
+  background: var(--ink); color: var(--paper);
+}
+.net[hidden] { display: none; }
 
-main { max-width: 1240px; margin: 0 auto; padding: 0.5rem 1.5rem 3rem; }
+main { max-width: 78rem; margin: 0 auto; padding: 0.5rem 1.5rem 3rem; }
 
 /* ---------- hero ---------- */
 
@@ -299,7 +308,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 /* ---------- colophon ---------- */
 
 .colophon {
-  max-width: 1240px; margin: 0 auto; padding: 1.6rem 1.5rem 3rem; border-top: 1px solid var(--rule);
+  max-width: 78rem; margin: 0 auto; padding: 1.6rem 1.5rem 3rem; border-top: 1px solid var(--rule);
   color: var(--ink-soft); font-size: 0.9rem; display: grid; gap: 0.5rem; grid-template-columns: minmax(0, 1fr);
 }
 .colophon p { margin: 0; max-width: 62rem; }

@@ -546,6 +546,13 @@ function renderError(err: unknown) {
     h("div", { class: "actions" }, h("button", { class: "primary", onclick: () => (state.facts ? renderResults() : renderStart()) }, "Try again"), h("button", { class: "quiet", onclick: renderStart }, "Start over"))));
 }
 
+// Say so when the connection drops: reading, explaining and drafting carry on with Gemini Nano.
+const net = document.getElementById("net")!;
+const showNet = () => { net.hidden = navigator.onLine; };
+addEventListener("online", showNet);
+addEventListener("offline", showNet);
+showNet();
+
 // After one visit the app opens without a connection; the reading and, offline, the drafting run on Gemini Nano.
 if ("serviceWorker" in navigator && import.meta.env.PROD) navigator.serviceWorker.register("/sw.js").catch(() => {});
 
