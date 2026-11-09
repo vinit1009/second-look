@@ -451,7 +451,9 @@ function renderLetter() {
       h("section", { class: "notes-col" },
         h("article", { class: "card" },
           h("header", { class: "card-head" }, h("h2", {}, "How it was written"), badge(state.draftWhere, state.draftMs, state.draftWhere === "on_device" ? `${navigator.onLine ? "Cloud unavailable" : "Offline"}, so drafted on this device · Gemini Nano` : `From masked text, in the cloud · ${CLOUD_MODEL}`)),
-          h("p", {}, "Gemini saw only placeholders like [PATIENT_NAME]; your details were filled back in on this device."),
+          h("p", {}, state.draftWhere === "on_device"
+            ? "Gemini Nano wrote it here, on this computer: nothing left the device."
+            : "Gemini in the cloud saw only placeholders like [PATIENT_NAME]; your details were filled back in on this device."),
           back.unknown.length ? h("div", { class: "blanks" }, h("p", {}, h("strong", {}, "Fill these in before you send it:")), h("ul", {}, ...back.unknown.map((u) => h("li", {}, h("code", {}, u))))) : null,
         ),
         h("article", { class: "card" }, h("header", { class: "card-head" }, h("h2", {}, "Send it with")), encl),
