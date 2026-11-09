@@ -40,8 +40,9 @@ CONFIG = {
             "Permissions-Policy": "camera=(), microphone=(), geolocation=(), interest-cohort=()",
             "Cross-Origin-Opener-Policy": "same-origin",
         }},
+        # Pages are revalidated on every visit ("/" is not matched by "/index.html"); hashed assets are immutable.
+        {"glob": "**", "headers": {"Cache-Control": "no-cache"}},
         {"glob": "/assets/**", "headers": {"Cache-Control": "public, max-age=31536000, immutable"}},
-        {"glob": "/index.html", "headers": {"Cache-Control": "no-cache"}},
     ],
 }
 

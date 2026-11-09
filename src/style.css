@@ -187,6 +187,12 @@ mark.static { animation: none; background-size: 100% 100%; padding: 0 0.15em; }
 .codes .try { background: rgba(39, 107, 69, 0.07); border-left: 3px solid var(--device); padding: 0.35rem 0.6rem; border-radius: 0 6px 6px 0; }
 .codes a { font-size: 0.85rem; }
 
+.rights { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.9rem; }
+.rights li { border-left: 3px solid var(--highlight); padding-left: 0.8rem; }
+.rights p { margin: 0.15rem 0 0.2rem; }
+.rights a { font-size: 0.85rem; }
+.sheet-caption { margin: 1rem 0 0.4rem; }
+
 .row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.8rem; }
 .row label { display: grid; gap: 0.25rem; font-size: 0.85rem; color: var(--ink-soft); flex: 1 1 12rem; }
 select, input[type="date"] {

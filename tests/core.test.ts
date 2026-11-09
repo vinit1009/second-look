@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { COMMON, findCodes, helpFor } from "../src/core/codes";
 import { deadline, ics, parseDate, printedDeadline } from "../src/core/deadline";
+import { protections } from "../src/core/protections";
 import { fillBack, leftovers, patternEntities, redact } from "../src/core/redact";
 import { SAMPLES } from "../src/samples";
 
@@ -111,5 +112,29 @@ describe("deadlines", () => {
     expect(cal).toContain("TRIGGER:-P7D");
     expect(cal).toContain("Claim ZX-448812\\, appeal due");
     expect(cal.split("\r\n")[0]).toBe("BEGIN:VCALENDAR");
+  });
+});
+
+describe("protections", () => {
+  it("flags emergency care denied as out of network, by plan type", () => {
+    const er = sample("er");
+    const ma = protections("medicare_advantage", er, findCodes(er)).map((p) => p.title);
+    expect(ma[0]).toBe("Emergency care is covered in or out of network");
+    expect(ma).toContain("If waiting could harm your health, ask for a fast appeal");
+    const mk = protections("marketplace", er, findCodes(er));
+    expect(mk[0].source).toContain("healthcare.gov/using-marketplace-coverage/getting-emergency-care");
+    expect(protections("employer", er, findCodes(er))[0].source).toContain("cms.gov/nosurprises");
+  });
+
+  it("does not claim emergency protections for planned care", () => {
+    const pt = sample("auth");
+    const titles = protections("employer", pt, findCodes(pt)).map((p) => p.title);
+    expect(titles.some((t) => t.startsWith("Emergency"))).toBe(false);
+    expect(titles).toContain("If they say no again, someone independent can decide");
+  });
+
+  it("offers nothing it cannot source for Original Medicare or Medicaid", () => {
+    expect(protections("original_medicare", sample("mri"), [])).toEqual([]);
+    expect(protections("medicaid", sample("mri"), [])).toEqual([]);
   });
 });

@@ -8,6 +8,7 @@ import "./style.css";
 import { appealName, CLOUD_MODEL, deviceStatus, draftAppeal, explain, findPeople, prepareDevice, readLetter, readMaskedLetter, type Explanation, type Facts, type Where } from "./ai";
 import { findCodes, GROUPS, helpFor, OFFICIAL_LISTS, type FoundCode } from "./core/codes";
 import { deadline, ics, parseDate, RULES, type PlanType } from "./core/deadline";
+import { protections } from "./core/protections";
 import { fillBack, leftovers, patternEntities, redact, type Category, type Entity, type Redaction } from "./core/redact";
 import { SAMPLES } from "./samples";
 
@@ -216,6 +217,7 @@ function renderResults() {
         explanationCard(),
         codesCard(),
         deadlineCard(),
+        rightsCard(),
         caseCard(),
       ),
     ),
@@ -287,6 +289,16 @@ function deadlineCard() {
     h("header", { class: "card-head" }, h("h2", {}, "Your deadline"), h("span", { class: "badge badge-fixed" }, "Worked out here, by rule")),
     h("div", { class: "row" }, h("label", {}, "Plan type", plan), h("label", {}, "Notice date", date)),
     box,
+  );
+}
+
+function rightsCard() {
+  const items = protections(state.plan, state.letter, state.codes);
+  if (!items.length) return null;
+  return h("article", { class: "card" },
+    h("header", { class: "card-head" }, h("h2", {}, "Rights that can help"), h("span", { class: "badge badge-fixed" }, "From official sources, not a model")),
+    h("ul", { class: "rights" }, ...items.map((p) => h("li", {},
+      h("strong", {}, p.title), h("p", {}, p.body), h("a", { href: p.source, rel: "noopener", target: "_blank" }, new URL(p.source).hostname.replace(/^www\./, ""))))),
   );
 }
 
@@ -394,7 +406,8 @@ async function draftStep(maskedNotes: string) {
   progress("Sending the masked letter and notes to Gemini");
   try {
     const codes = state.codes.map((c) => `${c.kind === "adjustment" ? `${c.group}-${c.code}` : c.code}: ${helpFor(c)?.meaning ?? "see the letter"}`);
-    const d = await draftAppeal({ maskedLetter: state.masked!.text, maskedNotes, plan: state.plan, appealName: appealName(state.plan), codes });
+    const rights = protections(state.plan, state.letter, state.codes).map((p) => `${p.title}: ${p.body}`);
+    const d = await draftAppeal({ maskedLetter: state.masked!.text, maskedNotes, plan: state.plan, appealName: appealName(state.plan), codes, rights });
     Object.assign(state, { draft: d.value, draftWhere: d.where, draftMs: d.ms });
     progress("Putting your details back in, on this device", true);
     renderLetter();

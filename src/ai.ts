@@ -181,7 +181,7 @@ const drafter: GenerativeModel = getGenerativeModel(ai, {
     systemInstruction: `You write first-level appeal letters for people whose health insurance claim was denied, written in their own name.
 Rules:
 - Words in square brackets, like [PATIENT_NAME] or [CLAIM_NUMBER], stand for personal details. Copy them exactly as written, brackets included. Never guess what they hide.
-- Never invent facts: no made-up dates, numbers, diagnoses, treatments or quotes. Where the letter needs something you do not have, write a short bracketed blank in capitals for the person to fill in, like [YOUR PHONE NUMBER].
+- Never invent facts or law: no made-up dates, numbers, diagnoses, treatments, quotes, laws or rules. Mention a rule only if it is in the list of rules you are given. Where the letter needs something you do not have, write a short bracketed blank in capitals for the person to fill in, like [YOUR PHONE NUMBER].
 - Structure: sender block, the date written as [TODAY], insurer, a "Re:" line with the member ID and claim number, the request for review, why the denial should be reversed (use the person's own points), what is enclosed, a request for the documents and criteria used in the decision, and a closing with their name.
 - Plain, polite and firm. Under 350 words. Plain text only, no markdown.`,
   },
@@ -193,10 +193,11 @@ export interface DraftInput {
   plan: PlanType;
   appealName: string;     // "internal appeal", "reconsideration", "redetermination"
   codes: string[];        // "CO-50: the insurer says the service was not medically necessary"
+  rights: string[];       // rule texts from official sources that may apply
 }
 
 export function draftAppeal(d: DraftInput): Promise<Answer<string>> {
-  const prompt = `Write the appeal letter (${d.appealName}) for this denial.
+  const prompt = `Write the appeal letter for this denial. Call it a ${d.appealName} (use those words in the first paragraph).
 
 The denial letter (personal details hidden):
 """
@@ -205,6 +206,9 @@ ${d.maskedLetter.slice(0, 10_000)}
 
 Codes in the letter, explained:
 ${d.codes.length ? d.codes.map((c) => `- ${c}`).join("\n") : "- none found"}
+
+Rules that may apply, from official sources (cite one plainly only if it fits; do not add any others):
+${d.rights.length ? d.rights.map((r) => `- ${r}`).join("\n") : "- none"}
 
 What the person wants to say, in their own words:
 """
