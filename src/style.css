@@ -143,9 +143,18 @@ mark.static { animation: none; background-size: 100% 100%; padding: 0 0.15em; }
 .notes-col > :nth-child(5) { animation-delay: 360ms; }
 
 @media (max-width: 940px) {
-  .spread { grid-template-columns: 1fr; gap: 1.6rem; }
+  .spread { grid-template-columns: minmax(0, 1fr); gap: 1.6rem; }
   .sheet-col { position: static; }
-  .sheet { max-height: none; }
+  .sheet { max-height: 60vh; }
+}
+
+@media (max-width: 560px) {
+  main, .masthead, .colophon { padding-left: 1rem; padding-right: 1rem; }
+  .sheet, .paper-input { padding: 1rem; font-size: 0.9rem; }
+  .paper { transform: none; }
+  .codes li { grid-template-columns: minmax(0, 1fr); gap: 0.4rem; }
+  .card { padding: 1rem; }
+  .due-date { font-size: 1.4rem; }
 }
 
 /* ---------- cards ---------- */
