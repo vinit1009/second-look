@@ -153,9 +153,13 @@ export async function photoStatus(): Promise<string> {
   }
 }
 
-/** Turns a photo (JPEG, base64) into the letter's text with Gemini Nano. Must start from a click. */
-export async function readPhoto(jpegBase64: string, progress: (share: number) => void): Promise<Answer<string>> {
-  await photoReader.initializeDeviceModel(progress);
+/** Downloads or loads the on-device model for images. Must run from a click. */
+export function preparePhoto(progress: (share: number) => void): Promise<void> {
+  return photoReader.initializeDeviceModel(progress);
+}
+
+/** Turns a photo (JPEG, base64) into the letter's text with Gemini Nano. */
+export async function readPhoto(jpegBase64: string): Promise<Answer<string>> {
   const t0 = performance.now();
   const result = await photoReader.generateContent([
     { type: "text", text: "Transcribe all the text in this photo of a letter exactly as written, line by line. Keep numbers, dates, codes and amounts exactly. Output only the text, nothing else." },

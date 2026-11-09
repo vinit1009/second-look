@@ -5,7 +5,7 @@ import "@fontsource/atkinson-hyperlegible-mono";
 import "@fontsource/atkinson-hyperlegible-mono/700.css";
 import "./style.css";
 
-import { appealName, CLOUD_MODEL, deviceStatus, draftAppeal, explain, findPeople, photoStatus, prepareDevice, readLetter, readMaskedLetter, readPhoto, type Explanation, type Facts, type Where } from "./ai";
+import { appealName, CLOUD_MODEL, deviceStatus, draftAppeal, explain, findPeople, photoStatus, prepareDevice, preparePhoto, readLetter, readMaskedLetter, readPhoto, type Explanation, type Facts, type Where } from "./ai";
 import { findCodes, GROUPS, helpFor, OFFICIAL_LISTS, type FoundCode } from "./core/codes";
 import { deadline, ics, parseDate, RULES, type PlanType } from "./core/deadline";
 import { protections } from "./core/protections";
@@ -147,9 +147,11 @@ function renderPhoto(file: File) {
     progress(state.photo === "available" ? "Getting Gemini Nano ready on this device" : "Downloading Gemini Nano to this computer, once");
     try {
       const jpeg = await photoToJpeg(file);
-      let reading = false;
-      const r = await readPhoto(jpeg, (p) => { refreshDevice(p); if (!reading && p >= 1) { reading = true; } });
-      progress("Read on this device", true);
+      await preparePhoto((p) => refreshDevice(p));
+      await refreshDevice();
+      progress("Reading the text in your photo, on this device");
+      const r = await readPhoto(jpeg);
+      progress("Done", true);
       URL.revokeObjectURL(src);
       state.letter = r.value;
       state.fromPhoto = true;
