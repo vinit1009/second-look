@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "devDependencies": {
     "typescript": "~7.0.2",
@@ -18,5 +19,6 @@
     "@fontsource-variable/fraunces": "^5.3.0",
     "@fontsource/atkinson-hyperlegible-mono": "^5.3.0",
     "firebase": "^13.2.0"
-  }
+  },
+  "license": "MIT"
 }
