@@ -29,6 +29,16 @@ export const DATE_PATTERN = new RegExp(
 
 const MONTH_DAY = new RegExp(`\\b${MONTHS}\\.? \\d{1,2}(?:st|nd|rd|th)?\\b(?!,? \\d{4})`, "g");
 
+// Words that begin the next field on the same line ("Patient: Marcus Oyelaran Member ID: ..."),
+// so a name stops before them.
+const FIELD = String.raw`(?:Member|MEMBER|ID|Group|GROUP|Claim|CLAIM|Date|DATE|DOB|Account|ACCOUNT|Policy|POLICY|Provider|PROVIDER|Plan|PLAN|Subscriber|SUBSCRIBER|Phone|PHONE|Address|ADDRESS|Number|NUMBER|Service|SERVICE|Amount|AMOUNT)\b`;
+// A capitalised name, also "LAST, FIRST M" and names in capitals.
+const NAME = String.raw`[A-Z][A-Za-z'.-]*(?:,? (?!${FIELD})[A-Z][A-Za-z'.-]*){1,3}`;
+const DEGREE = String.raw`(?:MD|M\.D\.|DO|D\.O\.|NP|PA-C|PA|DPT|DDS|DMD|RN|CRNA|PhD)`;
+const SUFFIX = ["St", "Street", "Ave", "Avenue", "Rd", "Road", "Blvd", "Boulevard", "Dr", "Drive", "Ln", "Lane", "Way", "Ct", "Court",
+  "Pl", "Place", "Pkwy", "Parkway", "Ter", "Terrace", "Cir", "Circle", "Hwy", "Highway"].flatMap((x) => [x, x.toUpperCase()]).join("|");
+const UNIT = String.raw`(?:Apt|APT|Suite|SUITE|Ste|STE|Unit|UNIT|#)`;
+
 // [label pattern, category]: the value is the token (or name) that follows the label.
 const LABELLED: [RegExp, Category][] = [
   [/\b(?:member|subscriber|enrollee|beneficiary)\s*(?:id|identification|number|no\.?|#)\s*[:#]?\s*([A-Z0-9][A-Z0-9-]{4,})/gi, "MEMBER_ID"],
@@ -37,18 +47,22 @@ const LABELLED: [RegExp, Category][] = [
   [/\bclaim\s*(?:number|no\.?|#|id)\s*[:#]?\s*([A-Z0-9][A-Z0-9-]{3,})/gi, "CLAIM_NUMBER"],
   [/\b(?:account|patient account|reference)\s*(?:number|no\.?|#)\s*[:#]?\s*([A-Z0-9][A-Z0-9-]{3,})/gi, "ACCOUNT_NUMBER"],
   [/\b(?:date of birth|birth date|dob)\s*[:#]?\s*([^\n,;]{6,20}?\d{2,4})\b/gi, "DATE_OF_BIRTH"],
-  // The label in any case, the name itself capitalised ("Patient: Marcus Oyelaran").
-  [/\b(?:[Pp]atient|[Mm]ember|[Ss]ubscriber|[Ii]nsured|[Ee]nrollee|PATIENT|MEMBER)(?: [Nn]ame| NAME)?\s*:\s*([A-Z][a-zA-Z'.-]+(?: [A-Z][a-zA-Z'.-]+){1,3})/g, "PATIENT_NAME"],
-  [/\bDear (?:Mr\.?|Ms\.?|Mrs\.?|Mx\.?|Dr\.?)?\s*([A-Z][a-zA-Z'.-]+(?: [A-Z][a-zA-Z'.-]+){0,2}),/g, "PATIENT_NAME"],
+  // The label in any case, the name capitalised or in capitals.
+  [new RegExp(String.raw`\b(?:[Pp]atient|[Mm]ember|[Ss]ubscriber|[Ii]nsured|[Ee]nrollee|PATIENT|MEMBER|SUBSCRIBER|INSURED|ENROLLEE)(?: [Nn]ame| NAME)?\s*:\s*(${NAME})`, "g"), "PATIENT_NAME"],
+  [new RegExp(String.raw`\bDear (?:Mr\.?|Ms\.?|Mrs\.?|Mx\.?|Dr\.?)?\s*([A-Z][A-Za-z'.-]+(?: [A-Z][A-Za-z'.-]+){0,2})[,:]`, "g"), "PATIENT_NAME"],
   [/\b((?:Dr\.|Doctor) [A-Z][a-zA-Z'.-]+(?: [A-Z][a-zA-Z'.-]+)?)/g, "PROVIDER_NAME"],
+  // A provider written with a degree: "ALAN BROOKS, MD", "Priya Raman, NP", "Alan J. Brooks MD".
+  [new RegExp(String.raw`\b([A-Z][A-Za-z'.-]+(?: [A-Z]\.?)?(?: [A-Z][A-Za-z'.-]+){1,2}),? ${DEGREE}\b`, "g"), "PROVIDER_NAME"],
 ];
 
 const PLAIN: [RegExp, Category][] = [
   [/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, "EMAIL"],
   [/\b\d{3}-\d{2}-\d{4}\b/g, "SSN"],
   [/(?:\+1[\s.-]?)?(?:\(\d{3}\)\s?|\b\d{3}[\s.-])\d{3}[\s.-]\d{4}\b/g, "PHONE"],
-  [/\b\d{1,6} [A-Z0-9][A-Za-z0-9.' ]{1,40} (?:St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Dr|Drive|Ln|Lane|Way|Ct|Court|Pl|Place|Pkwy|Parkway|Ter|Terrace|Cir|Circle)\.?(?:,? (?:Apt|Suite|Ste|Unit|#)\.? ?[A-Za-z0-9-]+)?\b/g, "ADDRESS"],
-  [/\b[A-Z][A-Za-z .'-]{1,30}, [A-Z]{2} \d{5}(?:-\d{4})?\b/g, "ADDRESS"],
+  // A street address, in capitals or not: "1187 Larkspur Lane, Apt 4B", "1187 LARKSPUR LN APT 4B".
+  [new RegExp(String.raw`\b\d{1,6} (?:[NSEW]\.? )?[A-Z0-9][A-Za-z0-9.']*(?: [A-Z0-9][A-Za-z0-9.']*){0,4} (?:${SUFFIX})\.?(?:,? ${UNIT}\.? ?[A-Za-z0-9-]+)?\b`, "g"), "ADDRESS"],
+  // City, state and ZIP, with or without the comma: "Springfield, IL 62704", "SPRINGFIELD IL 62704".
+  [/\b[A-Z][A-Za-z.'-]*(?: [A-Z][A-Za-z.'-]*){0,3},? [A-Z]{2} \d{5}(?:-\d{4})?\b/g, "ADDRESS"],
   [/\bP\.?O\.? Box \d{1,6}\b/gi, "ADDRESS"],
 ];
 

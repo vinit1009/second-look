@@ -138,3 +138,39 @@ describe("protections", () => {
     expect(protections("medicaid", sample("mri"), [])).toEqual([]);
   });
 });
+
+describe("masking real-world formats", () => {
+  const caps = `EVERGREEN VALLEY HEALTH PLAN
+EXPLANATION OF BENEFITS - THIS IS NOT A BILL
+PATIENT NAME: WHITFIELD, DANA M
+MEMBER ID: XJH882341901    GROUP #: 0045821
+CLAIM #: 2026101400183
+DOB: 03/22/1984
+1187 LARKSPUR LN APT 4B
+SPRINGFIELD IL 62704
+Dear DANA WHITFIELD:
+RENDERING PROVIDER: ALAN BROOKS, MD
+Questions? Call 1-800-555-0142 (TTY 711).`;
+
+  it("masks names, IDs and addresses written in capitals, with or without commas", () => {
+    const r = redact(caps, patternEntities(caps));
+    for (const secret of ["WHITFIELD, DANA M", "DANA WHITFIELD", "XJH882341901", "0045821", "2026101400183", "03/22/1984", "1187 LARKSPUR LN APT 4B", "SPRINGFIELD IL 62704", "ALAN BROOKS", "800-555-0142"]) {
+      expect(r.text, secret).not.toContain(secret);
+    }
+    expect(r.text).toContain("EVERGREEN VALLEY HEALTH PLAN");     // the insurer stays
+    expect(r.text).toContain("THIS IS NOT A BILL");
+  });
+
+  it("does not swallow the next label on the same line", () => {
+    const t = "Patient: Marcus Oyelaran Member ID: SRB778120455";
+    const r = redact(t, patternEntities(t));
+    expect(r.text).toBe("Patient: [PATIENT_NAME] Member ID: [MEMBER_ID]");
+  });
+
+  it("masks a provider written with a degree after the name", () => {
+    const t = "Seen by Priya Raman, NP and Alan J. Brooks MD on the same day.";
+    const r = redact(t, patternEntities(t));
+    expect(r.text).not.toContain("Priya Raman");
+    expect(r.text).not.toContain("Alan J. Brooks");
+  });
+});
