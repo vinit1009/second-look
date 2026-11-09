@@ -44,6 +44,7 @@ interface State {
   masked?: Redaction;
   extra: Entity[];            // details the user masked by hand
   notePeople: Entity[];       // names Gemini Nano found in the user's notes
+  cloudReading?: boolean;     // the person chose to have the masked letter read in the cloud
   explanation?: Explanation;
   explainWhere?: Where;
   explainMs?: number;
@@ -132,8 +133,18 @@ async function start() {
   state.codes = findCodes(letter);
   try {
     if (state.device !== "unavailable") {
-      progress("Getting Gemini Nano ready on this device");
-      await prepareDevice((p) => refreshDevice(p));
+      const download = state.device === "downloadable" || state.device === "downloading";
+      progress(download ? "Downloading Gemini Nano to this computer, once" : "Getting Gemini Nano ready on this device");
+      let skipped = false;
+      const fill = h("span", { class: "meter-fill" });
+      if (download) {
+        steps.lastElementChild!.append(
+          h("div", { class: "meter", role: "progressbar", "aria-label": "Gemini Nano download" }, fill),
+          h("p", { class: "fine" }, "Chrome keeps the model for next time, so this happens only once. It can take a few minutes."),
+          h("button", { class: "quiet", onclick: () => { skipped = true; state.cloudReading = true; remask(); renderConsentToRead("downloading"); } }, "Don't wait: mask it and use the cloud"));
+      }
+      await prepareDevice((p) => { refreshDevice(p); fill.style.width = `${Math.round(p * 100)}%`; });
+      if (skipped) return; // the person chose the masked cloud path; the download carries on for next time
       await refreshDevice();
       progress("Reading the letter on this device: amounts, dates, people");
       const read = await readLetter(letter);
@@ -142,8 +153,9 @@ async function start() {
       remask();
     } else {
       remask();
+      state.cloudReading = true;
       progress("Masked personal details by pattern; waiting for you before anything is sent");
-      return renderConsentToRead();
+      return renderConsentToRead("unavailable");
     }
     await explainStep();
   } catch (err) {
@@ -166,18 +178,20 @@ function remask() {
 
 async function explainStep() {
   progress(state.device === "unavailable" ? "Explaining the masked letter in the cloud" : "Explaining it in plain words");
-  const ex = await explain(state.masked!.text, state.device !== "unavailable");
+  const ex = await explain(state.masked!.text, state.device === "available" && !state.cloudReading);
   Object.assign(state, { explanation: ex.value, explainWhere: ex.where, explainMs: ex.ms });
   progress("Done", true);
   renderResults();
 }
 
 // Without Gemini Nano: show the masked letter first and read it in the cloud only after a yes.
-function renderConsentToRead() {
+function renderConsentToRead(why: "unavailable" | "downloading") {
   main.replaceChildren(
     h("section", { class: "card wide" },
-      h("h2", {}, "This browser can't read the letter privately"),
-      h("p", {}, "Gemini Nano runs in desktop Chrome. Here, Second Look can still help: below is your letter with personal details masked by pattern matching. If it looks right, it can be read in the cloud. Names written in running text may be missed, so check it."),
+      h("h2", {}, why === "downloading" ? "Read it in the cloud while Gemini Nano downloads" : "This browser can't read the letter privately"),
+      h("p", {}, why === "downloading"
+        ? "Below is your letter with personal details masked by pattern matching. If it looks right, it can be read in the cloud now; next time, Gemini Nano will read it on this computer. Names written in running text may be missed, so check it."
+        : "Gemini Nano runs in desktop Chrome. Here, Second Look can still help: below is your letter with personal details masked by pattern matching. If it looks right, it can be read in the cloud. Names written in running text may be missed, so check it."),
       maskedPreview(),
       h("div", { class: "actions" },
         h("button", { class: "primary", onclick: async () => {

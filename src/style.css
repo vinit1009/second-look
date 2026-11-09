@@ -287,6 +287,10 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .progress li.done::before { border: 0; background: var(--device); animation: none; }
 .progress li.done::after { content: ""; position: absolute; left: 0.42rem; top: 0.33rem; width: 0.32rem; height: 0.6rem; border: solid var(--sheet); border-width: 0 2px 2px 0; transform: rotate(45deg); }
 
+.meter { height: 8px; border-radius: 999px; background: var(--paper-deep); overflow: hidden; margin: 0.6rem 0 0.4rem; max-width: 26rem; }
+.meter-fill { display: block; height: 100%; width: 0; background: var(--ink); border-radius: inherit; transition: width 300ms ease; }
+.progress li .quiet { margin-top: 0.3rem; }
+
 .toast {
   position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--paper);
   padding: 0.6rem 1.1rem; border-radius: 999px; font-weight: 600; animation: rise 200ms ease both;
