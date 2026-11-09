@@ -86,7 +86,9 @@ export async function deviceStatus(): Promise<string> {
   const lm = (globalThis as { LanguageModel?: { availability(o?: object): Promise<string> } }).LanguageModel;
   if (!lm) return "unavailable";
   try {
-    return await lm.availability(TEXT_IO);
+    // Some builds expose the API but never answer (no model service); do not wait forever.
+    const timeout = new Promise<string>((resolve) => setTimeout(() => resolve("unavailable"), 4000));
+    return await Promise.race([lm.availability(TEXT_IO), timeout]);
   } catch {
     return "unavailable";
   }
@@ -117,8 +119,15 @@ const maskedReader: GenerativeModel = getGenerativeModel(ai, {
   inCloudParams: { model: CLOUD_MODEL, generationConfig: { responseMimeType: "application/json", responseJsonSchema: FACTS_SCHEMA, temperature: 0.1 } },
 });
 
-export function readMaskedLetter(maskedLetter: string): Promise<Answer<Facts>> {
-  return timed(maskedReader, READ_PROMPT + maskedLetter.slice(0, 12_000) + '\n"""', (t) => JSON.parse(t) as Facts);
+// Where the browser has no working on-device model, skip the SDK's device check entirely: some
+// builds expose the Prompt API but never answer it, and PREFER_ON_DEVICE would wait on that.
+const cloudMaskedReader: GenerativeModel = getGenerativeModel(ai, {
+  mode: InferenceMode.ONLY_IN_CLOUD,
+  inCloudParams: { model: CLOUD_MODEL, generationConfig: { responseMimeType: "application/json", responseJsonSchema: FACTS_SCHEMA, temperature: 0.1 } },
+});
+
+export function readMaskedLetter(maskedLetter: string, onDevice: boolean): Promise<Answer<Facts>> {
+  return timed(onDevice ? maskedReader : cloudMaskedReader, READ_PROMPT + maskedLetter.slice(0, 12_000) + '\n"""', (t) => JSON.parse(t) as Facts);
 }
 
 // The person's own notes can name people the letter does not (a relative, a therapist), so they are
@@ -166,8 +175,13 @@ Letter:
 """
 `;
 
-export function explain(maskedLetter: string): Promise<Answer<Explanation>> {
-  return timed(explainer, EXPLAIN_PROMPT + maskedLetter.slice(0, 12_000) + '\n"""', (t) => JSON.parse(t) as Explanation);
+const cloudExplainer: GenerativeModel = getGenerativeModel(ai, {
+  mode: InferenceMode.ONLY_IN_CLOUD,
+  inCloudParams: { model: CLOUD_MODEL, generationConfig: { responseMimeType: "application/json", responseJsonSchema: EXPLAIN_SCHEMA, temperature: 0.3 } },
+});
+
+export function explain(maskedLetter: string, onDevice: boolean): Promise<Answer<Explanation>> {
+  return timed(onDevice ? explainer : cloudExplainer, EXPLAIN_PROMPT + maskedLetter.slice(0, 12_000) + '\n"""', (t) => JSON.parse(t) as Explanation);
 }
 
 // ---------- step 3: draft the appeal letter ----------

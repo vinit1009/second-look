@@ -166,7 +166,7 @@ function remask() {
 
 async function explainStep() {
   progress(state.device === "unavailable" ? "Explaining the masked letter in the cloud" : "Explaining it in plain words");
-  const ex = await explain(state.masked!.text);
+  const ex = await explain(state.masked!.text, state.device !== "unavailable");
   Object.assign(state, { explanation: ex.value, explainWhere: ex.where, explainMs: ex.ms });
   progress("Done", true);
   renderResults();
@@ -184,7 +184,7 @@ function renderConsentToRead() {
           try {
             main.replaceChildren(h("section", { class: "working" }, h("h2", {}, "Reading the masked letter"), steps));
             progress("Reading the masked letter in the cloud");
-            const read = await readMaskedLetter(state.masked!.text);
+            const read = await readMaskedLetter(state.masked!.text, false);
             const facts = read.value;
             const back = (s: string) => fillBack(s, state.masked!.map).text;
             state.facts = { ...facts, notice_date: back(facts.notice_date), service_date: back(facts.service_date), provider: back(facts.provider), people: [] };
@@ -532,5 +532,13 @@ function renderError(err: unknown) {
     h("div", { class: "actions" }, h("button", { class: "primary", onclick: () => (state.facts ? renderResults() : renderStart()) }, "Try again"), h("button", { class: "quiet", onclick: renderStart }, "Start over"))));
 }
 
-await refreshDevice();
+// Show the page at once; the device check can take a moment, and the start screen follows it.
 renderStart();
+refreshDevice().then(() => {
+  if (main.querySelector(".start")) {
+    const letter = (main.querySelector("#letter") as HTMLTextAreaElement | null)?.value ?? "";
+    renderStart();
+    const area = main.querySelector("#letter") as HTMLTextAreaElement | null;
+    if (area && letter) { area.value = letter; area.dispatchEvent(new Event("input")); }
+  }
+});
