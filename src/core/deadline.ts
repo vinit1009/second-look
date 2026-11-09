@@ -51,7 +51,7 @@ export const RULES: Record<PlanType, Rule> = {
   },
   unknown: {
     label: "Not sure",
-    note: "Use the deadline printed on the notice, or ask the insurer. Many plans allow 180 days; Medicare plans allow 65.",
+    note: "Choose your plan type above to work out the date, or use the deadline printed on the notice. Many plans allow 180 days; Medicare plans allow 65.",
     source: "https://www.healthcare.gov/appeal-insurance-company-decision/",
   },
 };

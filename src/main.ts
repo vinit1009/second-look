@@ -5,7 +5,7 @@ import "@fontsource/atkinson-hyperlegible-mono";
 import "@fontsource/atkinson-hyperlegible-mono/700.css";
 import "./style.css";
 
-import { appealName, CLOUD_MODEL, deviceStatus, draftAppeal, explain, findPeople, prepareDevice, readLetter, readMaskedLetter, type Explanation, type Facts, type Where } from "./ai";
+import { appealName, CLOUD_MODEL, deviceStatus, draftAppeal, explain, findPeople, photoStatus, prepareDevice, readLetter, readMaskedLetter, readPhoto, type Explanation, type Facts, type Where } from "./ai";
 import { findCodes, GROUPS, helpFor, OFFICIAL_LISTS, type FoundCode } from "./core/codes";
 import { deadline, ics, parseDate, RULES, type PlanType } from "./core/deadline";
 import { protections } from "./core/protections";
@@ -45,6 +45,8 @@ interface State {
   extra: Entity[];            // details the user masked by hand
   notePeople: Entity[];       // names Gemini Nano found in the user's notes
   cloudReading?: boolean;     // the person chose to have the masked letter read in the cloud
+  photo: string;              // whether this browser can read images on the device
+  fromPhoto?: boolean;        // the letter text came from a photo: ask the person to check it
   explanation?: Explanation;
   explainWhere?: Where;
   explainMs?: number;
@@ -54,7 +56,7 @@ interface State {
   draftWhere?: Where;
   draftMs?: number;
 }
-const state: State = { device: "unavailable", letter: "", plan: "unknown", codes: [], extra: [], notePeople: [], notes: "" };
+const state: State = { device: "unavailable", photo: "unavailable", letter: "", plan: "unknown", codes: [], extra: [], notePeople: [], notes: "" };
 
 const LABEL: Record<Category, string> = {
   PATIENT_NAME: "name", PROVIDER_NAME: "doctor", PERSON_NAME: "name", MEMBER_ID: "member ID", GROUP_NUMBER: "group no.",
@@ -91,11 +93,18 @@ async function refreshDevice(progress?: number) {
 function renderStart() {
   main.replaceChildren();
   const area = h("textarea", {
-    id: "letter", class: "paper-input", spellcheck: false, rows: 10,
-    placeholder: "Paste the denial letter or Explanation of Benefits here. Type or copy the text; nothing is uploaded.",
+    id: "letter", class: "paper-input", spellcheck: false, rows: 10, value: state.letter,
+    placeholder: "Paste the denial letter or Explanation of Benefits here, or a photo of it. Nothing is uploaded.",
     oninput: () => { state.letter = area.value; go.disabled = !area.value.trim(); },
+    onpaste: (e: ClipboardEvent) => {
+      const file = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith("image/"));
+      if (file) { e.preventDefault(); renderPhoto(file); }
+    },
   });
-  const go = h("button", { class: "primary", disabled: true, onclick: () => start() },
+  const picker = h("input", { type: "file", accept: "image/jpeg,image/png,image/webp", capture: "environment", class: "visually-hidden",
+    onchange: () => { const f = picker.files?.[0]; if (f) renderPhoto(f); } });
+  const photoButton = h("button", { class: "quiet", onclick: () => picker.click() }, "Use a photo instead");
+  const go = h("button", { class: "primary", disabled: !state.letter.trim(), onclick: () => start() },
     state.device === "unavailable" ? "Mask it, then read it" : "Read it on this device");
   const samples = h("div", { class: "samples" }, h("span", { class: "samples-label" }, "No letter to hand? Try one:"),
     ...SAMPLES.map((s) => h("button", { class: "chip", onclick: () => { area.value = s.text; state.letter = s.text; state.plan = s.plan; go.disabled = false; area.focus(); } }, s.title)));
@@ -106,14 +115,58 @@ function renderStart() {
     ),
     h("section", { class: "start" },
       h("label", { for: "letter", class: "step-label" }, h("span", { class: "step-no" }, "1"), "The letter"),
+      state.fromPhoto ? h("p", { class: "notice", role: "status" }, "Here is the text from your photo, read on this device. Check it against the letter, especially amounts, dates and codes, then press Read it on this device.") : null,
       h("div", { class: "paper" }, area),
-      h("div", { class: "actions" }, go, h("p", { class: "fine" },
+      h("div", { class: "actions" }, go, photoButton, picker, h("p", { class: "fine" },
         state.device === "unavailable"
           ? "This browser cannot run Gemini Nano, so personal details are masked by pattern matching and you will see exactly what would be sent before anything is."
           : "The first time, Chrome downloads Gemini Nano (a few GB) and keeps it for next time.")),
       samples,
     ),
   );
+}
+
+// ---------- a photo of the letter ----------
+
+/** Downscales a photo and returns it as base64 JPEG for the on-device model. */
+async function photoToJpeg(file: File): Promise<string> {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  const canvas = h("canvas", { width: Math.round(bmp.width * scale), height: Math.round(bmp.height * scale) });
+  canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  const url = canvas.toDataURL("image/jpeg", 0.9);
+  return url.slice(url.indexOf(",") + 1);
+}
+
+function renderPhoto(file: File) {
+  const src = URL.createObjectURL(file);
+  const canRead = state.photo !== "unavailable";
+  const read = h("button", { class: "primary", disabled: !canRead, onclick: async () => {
+    main.replaceChildren(h("section", { class: "working" }, h("h2", {}, "Reading your photo"), h("img", { class: "thumb", src, alt: "Your photo" }), steps));
+    steps.replaceChildren();
+    progress(state.photo === "available" ? "Getting Gemini Nano ready on this device" : "Downloading Gemini Nano to this computer, once");
+    try {
+      const jpeg = await photoToJpeg(file);
+      let reading = false;
+      const r = await readPhoto(jpeg, (p) => { refreshDevice(p); if (!reading && p >= 1) { reading = true; } });
+      progress("Read on this device", true);
+      URL.revokeObjectURL(src);
+      state.letter = r.value;
+      state.fromPhoto = true;
+      state.photo = "available";
+      renderStart();
+    } catch (err) {
+      renderError(err);
+    }
+  } }, "Read this photo on this device");
+  main.replaceChildren(h("section", { class: "card wide" },
+    h("h2", {}, "Your photo"),
+    h("img", { class: "photo", src, alt: "The photo you chose" }),
+    canRead
+      ? h("p", {}, "Gemini Nano will read the text in this photo here, on this computer. The photo is never uploaded.")
+      : h("p", {}, "This browser cannot read photos on the device, so Second Look will not upload it. Type or paste the text of the letter instead."),
+    h("div", { class: "actions" }, read, h("button", { class: "quiet", onclick: () => { URL.revokeObjectURL(src); renderStart(); } }, canRead ? "Choose another" : "Back")),
+  ));
 }
 
 // ---------- the reading ----------
@@ -128,6 +181,7 @@ function progress(text: string, done = false) {
 async function start() {
   const letter = state.letter.trim();
   if (!letter) return;
+  state.fromPhoto = false;
   main.replaceChildren(h("section", { class: "working" }, h("h2", {}, "Reading your letter"), steps));
   steps.replaceChildren();
   state.codes = findCodes(letter);
@@ -293,7 +347,7 @@ function deadlineCard() {
           h("span", { class: "due-label" }, d.daysLeft! >= 0 ? "Appeal by" : "The deadline was"),
           h("span", { class: "due-date" }, fmt(d.due)),
           h("span", { class: "due-left" }, d.daysLeft! >= 0 ? `${d.daysLeft} days left` : `${-d.daysLeft!} days ago; you may still ask for an extension for good cause`))
-        : h("div", { class: "due unknown" }, h("span", { class: "due-label" }, "Deadline"), h("span", { class: "due-date small" }, "Use the date printed on your notice")),
+        : h("div", { class: "due unknown" }, h("span", { class: "due-label" }, "Deadline"), h("span", { class: "due-date small" }, state.plan === "unknown" ? "Choose your plan type to count the days" : "Use the date printed on your notice")),
       h("p", { class: "fine" }, d.explanation, " ", d.source ? h("a", { href: d.source, rel: "noopener", target: "_blank" }, "Source") : null),
       d.due ? h("button", { class: "quiet", onclick: () => download("appeal-deadline.ics", ics(d.due!, "Appeal deadline: denied claim", `File the appeal for the denied claim (${state.facts?.service || "see letter"}). Drafted with Second Look.`), "text/calendar") }, "Add to my calendar") : "",
     );
@@ -560,6 +614,7 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) navigator.serviceWorke
 
 // Show the page at once; the device check can take a moment, and the start screen follows it.
 renderStart();
+photoStatus().then((p) => { state.photo = p; });
 refreshDevice().then(() => {
   if (main.querySelector(".start")) {
     const letter = (main.querySelector("#letter") as HTMLTextAreaElement | null)?.value ?? "";

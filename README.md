@@ -15,6 +15,7 @@ Each step uses the inference mode its privacy needs, and the screen says where e
 | Step | Input | Mode | Why |
 |---|---|---|---|
 | Read the letter: insurer, plan type, dates, amounts, the reason, the people named | the raw letter | `ONLY_ON_DEVICE` | The raw letter is full of personal details. If Gemini Nano is not available, this step does not run in the cloud instead: the person sees a masked copy first (below). |
+| Read a photo of a paper letter | the photo | `ONLY_ON_DEVICE` (image input) | Photos are never uploaded; Gemini Nano transcribes them and the person checks the text. |
 | Find names in the person's own notes | their notes | `ONLY_ON_DEVICE` | Notes name people the letter does not (a relative, a therapist). |
 | Explain it in plain words | the masked letter | `ONLY_ON_DEVICE` (or `ONLY_IN_CLOUD` after a yes, where there is no Gemini Nano) | Already masked, but the cloud still waits for the person's say-so. |
 | Draft the appeal letter | masked letter, masked notes, code meanings, rules | `PREFER_IN_CLOUD` | Writing a strong letter benefits from the larger model. With no network, the SDK falls back to Gemini Nano, which gets the same rules as a system prompt. |

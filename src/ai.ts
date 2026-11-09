@@ -134,6 +134,36 @@ export function findPeople(text: string): Promise<Answer<{ people: string[] }>> 
   return timed(peopleFinder, `List the full name of every person named in this text, exactly as written. People only: no companies, clinics or places. If there are none, return an empty list.\n\nText:\n"""\n${text.slice(0, 6_000)}\n"""`, (t) => JSON.parse(t) as { people: string[] });
 }
 
+// A photo of a paper letter is read the same way: on the device only. Photos are never sent anywhere.
+const IMAGE_IO: LanguageModelCreateOptions = { expectedInputs: [{ type: "image" }, { type: "text", languages: ["en"] }], expectedOutputs: [{ type: "text", languages: ["en"] }] };
+const photoReader: GenerativeModel = getGenerativeModel(deviceAI, {
+  mode: InferenceMode.ONLY_ON_DEVICE,
+  onDeviceParams: { createOptions: IMAGE_IO },
+});
+
+/** Whether this browser can read images on the device ("available", "downloadable", ... or "unavailable"). */
+export async function photoStatus(): Promise<string> {
+  const lm = (globalThis as { LanguageModel?: { availability(o?: object): Promise<string> } }).LanguageModel;
+  if (!lm) return "unavailable";
+  try {
+    const timeout = new Promise<string>((resolve) => setTimeout(() => resolve("unavailable"), 4000));
+    return await Promise.race([lm.availability(IMAGE_IO), timeout]);
+  } catch {
+    return "unavailable";
+  }
+}
+
+/** Turns a photo (JPEG, base64) into the letter's text with Gemini Nano. Must start from a click. */
+export async function readPhoto(jpegBase64: string, progress: (share: number) => void): Promise<Answer<string>> {
+  await photoReader.initializeDeviceModel(progress);
+  const t0 = performance.now();
+  const result = await photoReader.generateContent([
+    { type: "text", text: "Transcribe all the text in this photo of a letter exactly as written, line by line. Keep numbers, dates, codes and amounts exactly. Output only the text, nothing else." },
+    { type: "inlineData", inlineData: { mimeType: "image/jpeg", data: jpegBase64 } },
+  ]);
+  return { value: result.response.text().trim(), where: (result.response.inferenceSource ?? "on_device") as Where, ms: Math.round(performance.now() - t0) };
+}
+
 // ---------- step 2: explain the masked letter ----------
 
 export interface Explanation {

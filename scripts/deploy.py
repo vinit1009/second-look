@@ -24,8 +24,9 @@ CSP = "; ".join([
     "script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
-    "img-src 'self' data:",
-    "connect-src 'self' https://*.googleapis.com https://www.google.com",
+    "img-src 'self' data: blob:",
+    # data: because the AI SDK turns an image into an ImageBitmap by fetching a data: URL (photos stay local).
+    "connect-src 'self' data: https://*.googleapis.com https://www.google.com",
     "frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/",
     "frame-ancestors 'none'",
     "base-uri 'none'",
