@@ -532,6 +532,9 @@ function renderError(err: unknown) {
     h("div", { class: "actions" }, h("button", { class: "primary", onclick: () => (state.facts ? renderResults() : renderStart()) }, "Try again"), h("button", { class: "quiet", onclick: renderStart }, "Start over"))));
 }
 
+// After one visit the app opens without a connection; the reading and, offline, the drafting run on Gemini Nano.
+if ("serviceWorker" in navigator && import.meta.env.PROD) navigator.serviceWorker.register("/sw.js").catch(() => {});
+
 // Show the page at once; the device check can take a moment, and the start screen follows it.
 renderStart();
 refreshDevice().then(() => {

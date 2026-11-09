@@ -23,6 +23,10 @@ The cloud side (a second Firebase app with App Check and reCAPTCHA Enterprise) i
 
 `PREFER_ON_DEVICE` is deliberately not used: it sends a request to the cloud whenever the on-device model is merely "downloadable", which is not acceptable for the raw letter. The private steps use `ONLY_ON_DEVICE` and call `initializeDeviceModel()` from the person's click. Browsers that expose the Prompt API but never answer it are detected with a timeout and get the masked cloud path.
 
+## Works offline
+
+After one visit, a service worker (generated at build time with the exact file list, `vite.config.ts`) keeps the app shell. With no connection at all, Second Look still opens, reads the letter, explains it, works out the deadline and drafts the appeal: `PREFER_IN_CLOUD` falls back to Gemini Nano, which gets the same drafting rules as a system prompt. Checked on the live site with the network switched off.
+
 ## Masking
 
 Before anything can leave the device, details are replaced with placeholders such as `[PATIENT_NAME]`, `[MEMBER_ID]` or `[DATE_2]` (`src/core/redact.ts`):
