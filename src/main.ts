@@ -11,6 +11,7 @@ import { deadline, ics, parseDate, RULES, type PlanType } from "./core/deadline"
 import { protections } from "./core/protections";
 import { fillBack, leftovers, patternEntities, redact, type Category, type Entity, type Redaction } from "./core/redact";
 import { SAMPLES } from "./samples";
+import { byUrgency, isoDay, loadCases, nextStep, removeCase, upsertCase, type Care, type Case, type Status } from "./core/tracker";
 
 // ---------- a small DOM helper ----------
 
@@ -55,6 +56,7 @@ interface State {
   draft?: string;
   draftWhere?: Where;
   draftMs?: number;
+  caseId?: string;            // set once this letter is saved to My appeals
 }
 const state: State = { device: "unavailable", photo: "unavailable", letter: "", plan: "unknown", codes: [], extra: [], notePeople: [], notes: "" };
 
@@ -505,6 +507,7 @@ function renderLetter() {
           h("button", { class: "quiet", onclick: renderResults }, "Back to the notes")),
       ),
       h("section", { class: "notes-col" },
+        trackCard(area),
         h("article", { class: "card" },
           h("header", { class: "card-head" }, h("h2", {}, "How it was written"), badge(state.draftWhere, state.draftMs, state.draftWhere === "on_device" ? `${navigator.onLine ? "Cloud unavailable" : "Offline"}, so drafted on this device · Gemini Nano` : `From masked text, in the cloud · ${CLOUD_MODEL}`)),
           h("p", {}, state.draftWhere === "on_device"
@@ -574,6 +577,99 @@ function annotatedLetter() {
 
 // ---------- small things ----------
 
+// ---------- My appeals: saved cases and the next date that matters ----------
+
+const casesLink = document.getElementById("cases-link") as HTMLButtonElement;
+casesLink.onclick = () => renderCases();
+function refreshCasesLink() {
+  const n = loadCases().length;
+  casesLink.hidden = n === 0;
+  casesLink.textContent = `My appeals (${n})`;
+}
+
+function trackCard(letter: HTMLTextAreaElement) {
+  const had = !!state.facts?.service_date;
+  const care = h("select", {},
+    h("option", { value: "received", selected: had }, "Yes, I already had it"),
+    h("option", { value: "not_yet", selected: !had }, "Not yet: it needs approval first"),
+    h("option", { value: "urgent" }, "It is urgent: my health can't wait"));
+  const said = h("p", { class: "fine", role: "status" });
+  const save = h("button", { class: "primary", onclick: () => {
+    const d = deadline(state.plan, state.noticeDate, state.letter);
+    const c: Case = {
+      id: state.caseId ?? crypto.randomUUID(), created: new Date().toISOString(),
+      title: state.facts?.service || "Denied claim", insurer: state.facts?.insurer || "",
+      plan: state.plan, care: care.value as Care, due: d.due ? isoDay(d.due) : undefined,
+      status: "drafted", letter: letter.value,
+    };
+    state.caseId = c.id;
+    upsertCase(c);
+    refreshCasesLink();
+    save.textContent = "Update the saved appeal";
+    said.replaceChildren("Saved in this browser only (anyone using this browser profile can open it). ",
+      h("a", { href: "#", onclick: (e: Event) => { e.preventDefault(); renderCases(); } }, "Open My appeals"));
+  } }, state.caseId ? "Update the saved appeal" : "Save to My appeals");
+  return h("article", { class: "card accent" },
+    h("header", { class: "card-head" }, h("h2", {}, "Keep track of it"), h("span", { class: "badge badge-fixed" }, "Stays on this device")),
+    h("p", {}, "Save the letter and Second Look counts down to each date that matters: your deadline, when the plan must answer, and when you can ask for an independent review."),
+    h("label", { class: "stack" }, "Have you already had this care?", care),
+    h("div", { class: "actions" }, save), said);
+}
+
+const STATUS_LABEL: Record<Status, string> = {
+  drafted: "Letter ready", sent: "Sent, waiting", approved: "Approved", denied_again: "Denied again", external_sent: "External review", closed: "Closed",
+};
+
+function renderCases() {
+  refreshCasesLink();
+  const list = byUrgency(loadCases());
+  main.replaceChildren(
+    h("section", { class: "hero" },
+      h("h1", {}, "My appeals"),
+      h("p", { class: "lede" }, "Each appeal you saved, with the next date that matters. Kept in this browser only: nothing on this page is sent anywhere.")),
+    list.length ? h("div", { class: "cases" }, ...list.map(caseItem)) : h("p", { class: "fine" }, "Nothing saved yet. After you draft a letter, choose Save to My appeals."),
+    h("div", { class: "actions" }, h("button", { class: "primary", onclick: () => { state.caseId = undefined; renderStart(); } }, "Check another letter")),
+  );
+}
+
+function caseItem(c: Case): HTMLElement {
+  const step = nextStep(c);
+  const fmt = (d: Date) => d.toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "long", day: "numeric" });
+  const save = (patch: Partial<Case>) => { upsertCase({ ...c, ...patch }); renderCases(); };
+  const today = isoDay(new Date());
+  const when = h("input", { type: "date", value: today, max: today, "aria-label": "Date" });
+  const mark = (status: Status, field: "sent" | "decided" | "externalSent") => () => save({ status, [field]: when.value || today });
+  const moves: HTMLElement[] = [];
+  if (c.status === "drafted") moves.push(h("button", { class: "primary", onclick: mark("sent", "sent") }, "I sent it"));
+  if (c.status === "sent") moves.push(h("button", { class: "primary", onclick: mark("approved", "decided") }, "They said yes"), h("button", { class: "quiet", onclick: mark("denied_again", "decided") }, "They said no again"));
+  if (c.status === "denied_again") moves.push(h("button", { class: "primary", onclick: mark("external_sent", "externalSent") }, "I asked for an external review"), h("button", { class: "quiet", onclick: () => save({ status: "closed" }) }, "Stop tracking"));
+  if (c.status === "external_sent") moves.push(h("button", { class: "primary", onclick: mark("approved", "decided") }, "The reviewer sided with me"), h("button", { class: "quiet", onclick: () => save({ status: "closed" }) }, "The denial stands"));
+  const letter = h("pre", { class: "case-letter", hidden: true }, c.letter);
+  let armed = false;
+  const del = h("button", { class: "quiet", onclick: () => {
+    if (!armed) { armed = true; del.textContent = "Delete it for good?"; setTimeout(() => { armed = false; del.textContent = "Delete"; }, 4000); return; }
+    removeCase(c.id); renderCases();
+  } }, "Delete");
+  return h("article", { class: "card case" },
+    h("header", { class: "card-head" },
+      h("h2", {}, c.title),
+      h("span", { class: `badge status-${c.status}` }, STATUS_LABEL[c.status])),
+    c.insurer ? h("p", { class: "fine" }, `${c.insurer} · ${RULES[c.plan].label}`) : h("p", { class: "fine" }, RULES[c.plan].label),
+    h("div", { class: `due ${step.overdue ? "urgent" : ""} ${step.done ? "done" : ""}` },
+      h("span", { class: "due-label" }, step.label),
+      step.date ? h("span", { class: "due-date" }, fmt(step.date)) : null,
+      step.date && !step.done ? h("span", { class: "due-left" }, step.overdue ? `${-step.daysLeft!} days ago` : step.daysLeft === 0 ? "Today" : `In ${step.daysLeft} days`) : null),
+    h("p", { class: "fine" }, step.advice, " ", step.source ? h("a", { href: step.source, rel: "noopener", target: "_blank" }, "Source") : null),
+    moves.length ? h("div", { class: "actions" }, h("label", { class: "inline" }, "Date", when), ...moves) : null,
+    h("div", { class: "actions" },
+      step.date && !step.done ? h("button", { class: "quiet", onclick: () => download("appeal-date.ics", ics(step.date!, `${step.label} ${fmt(step.date!)}: ${c.title}`, `${step.advice} Tracked with Second Look.`), "text/calendar") }, "Add to my calendar") : null,
+      h("button", { class: "quiet", onclick: () => { letter.hidden = !letter.hidden; } }, "Show the letter"),
+      h("button", { class: "quiet", onclick: async () => { await navigator.clipboard.writeText(c.letter); flash("Copied"); } }, "Copy the letter"),
+      del),
+    letter,
+  );
+}
+
 function download(name: string, text: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }));
   h("a", { href: url, download: name }).click();
@@ -616,6 +712,7 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) navigator.serviceWorke
 
 // Show the page at once; the device check can take a moment, and the start screen follows it.
 renderStart();
+refreshCasesLink();
 photoStatus().then((p) => { state.photo = p; });
 refreshDevice().then(() => {
   if (main.querySelector(".start")) {

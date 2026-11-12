@@ -330,3 +330,19 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; transition: none !important; }
   .hero h1 em, mark.reason { background-size: 100% 100%; }
 }
+
+/* ---------- My appeals ---------- */
+.nav-link { margin-left: auto; margin-right: 1rem; background: none; border: 1px solid var(--rule); border-radius: 999px; padding: 0.35rem 0.9rem; font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; }
+.nav-link:hover { border-color: var(--ink-soft); }
+.cases { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr)); margin-top: 1rem; }
+.case h2 { font-size: 1.25rem; }
+.case-letter { white-space: pre-wrap; font: 0.92rem/1.5 var(--mono, ui-monospace, monospace); background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; padding: 0.8rem; max-height: 22rem; overflow: auto; }
+.due.done { background: var(--device-bg); }
+.due.done .due-label { color: var(--device); }
+label.stack { display: grid; gap: 0.3rem; margin: 0.4rem 0 0.2rem; font-weight: 600; }
+label.inline { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--ink-soft); }
+.status-drafted { border: 1px solid var(--rule); color: var(--ink-soft); }
+.status-sent, .status-external_sent { background: var(--cloud-bg); color: var(--cloud); }
+.status-approved { background: var(--device-bg); color: var(--device); }
+.status-denied_again { background: #fde3e0; color: var(--alert); }
+.status-closed { border: 1px solid var(--rule); color: var(--ink-soft); opacity: 0.8; }
