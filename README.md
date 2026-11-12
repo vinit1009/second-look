@@ -24,6 +24,23 @@ The cloud side (a second Firebase app with App Check and reCAPTCHA Enterprise) i
 
 `PREFER_ON_DEVICE` is deliberately not used: it sends a request to the cloud whenever the on-device model is merely "downloadable", which is not acceptable for the raw letter. The private steps use `ONLY_ON_DEVICE` and call `initializeDeviceModel()` from the person's click. Browsers that expose the Prompt API but never answer it are detected with a timeout and get the masked cloud path.
 
+## After the letter: My appeals
+
+Most appeals are lost on dates, not arguments. A drafted letter can be saved to **My appeals**, which keeps it in this browser only (`localStorage`; nothing is sent) and counts down to the next date that matters:
+
+| Status | The date shown | Rule (official source) |
+|---|---|---|
+| Letter ready | the appeal deadline | the letter's own date, else the plan-type rule ([HealthCare.gov](https://www.healthcare.gov/appeal-insurance-company-decision/internal-appeals/), [Medicare.gov](https://www.medicare.gov/providers-services/claims-appeals-complaints/appeals/medicare-health-plans)) |
+| Sent, waiting | when the plan must answer | 30 days for care not yet had, 60 for care already had, 72 hours when urgent; Medicare plans may take up to 14 more days |
+| Denied again | the last day to ask for an independent external review | 4 months after the final denial ([HealthCare.gov](https://www.healthcare.gov/appeal-insurance-company-decision/external-review/)); free in the federal process, at most $25 otherwise |
+| External review | when the reviewer must decide | 45 days, or 72 hours when urgent |
+
+Each step says what to do next, links its source and can be added to the calendar (`.ics`). Where no single rule applies (Original Medicare, Medicaid), it says so and points to the notice instead of inventing a date. The rules are code with tests (`src/core/tracker.ts`, `tests/tracker.test.ts`), not model output.
+
+## Cloud settings from Remote Config
+
+The cloud model, how long a draft waits for the cloud before Gemini Nano writes it on the device, and the draft temperature come from Firebase Remote Config (`scripts/remote-config.json`, published with the REST API), so they can change without a release. Remote Config is fetched when the cloud side is created, after the person's yes, and never holds up a draft: if it has not answered within 2.5 seconds, built-in defaults are used, and out-of-range values are ignored.
+
 ## Works offline
 
 After one visit, a service worker (generated at build time with the exact file list, `vite.config.ts`) keeps the app shell. With no connection at all, Second Look still opens, reads the letter, explains it, works out the deadline and drafts the appeal: `PREFER_IN_CLOUD` falls back to Gemini Nano, which gets the same drafting rules as a system prompt. Checked on the live site with the network switched off.
@@ -60,6 +77,13 @@ Deploy: `npm run build && python3 scripts/deploy.py <site-id> --account <your gc
 ## Limits
 
 Second Look is not legal or medical advice, and it does not file anything. Rules differ by plan and by state; the app links each rule to its source and tells people to check their plan documents. The on-device model is small, so the facts it reads are shown for the person to check.
+
+## Built during the #BuildHybridAI submission period
+
+Second Look existed before the submission period opened (2026-11-11, 1:30 PM PT): its state then is tagged [`pre-contest`](../../tree/pre-contest). Everything after that tag was built during the period, with ordinary dated commits:
+
+- **My appeals**: saving an appeal and tracking every date after the letter (internal appeal answer, external review window and answer), with official sources, calendar reminders and tests.
+- **Remote Config**: cloud model settings that change without a release, loaded only after consent.
 
 ## License
 
