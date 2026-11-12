@@ -84,7 +84,8 @@ Second Look existed before the submission period opened (2026-11-11, 1:30 PM PT)
 
 - **My appeals**: saving an appeal and tracking every date after the letter (internal appeal answer, external review window and answer), with official sources, calendar reminders and tests.
 - **Remote Config**: cloud model settings that change without a release, loaded only after consent.
+- **Apache-2.0**: relicensed from MIT to the contest's preferred open source license.
 
 ## License
 
-MIT
+Apache License 2.0 (see `LICENSE`). Copyright 2026 Vinit Shah.
