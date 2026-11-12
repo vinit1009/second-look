@@ -5,7 +5,7 @@ import "@fontsource/atkinson-hyperlegible-mono";
 import "@fontsource/atkinson-hyperlegible-mono/700.css";
 import "./style.css";
 
-import { appealName, CLOUD_MODEL, deviceStatus, draftAppeal, explain, findPeople, photoStatus, prepareDevice, preparePhoto, readLetter, readMaskedLetter, readPhoto, type Explanation, type Facts, type Where } from "./ai";
+import { appealName, cloudModel, deviceStatus, draftAppeal, explain, findPeople, photoStatus, prepareDevice, preparePhoto, readLetter, readMaskedLetter, readPhoto, type Explanation, type Facts, type Where } from "./ai";
 import { findCodes, GROUPS, helpFor, OFFICIAL_LISTS, type FoundCode } from "./core/codes";
 import { deadline, ics, parseDate, RULES, type PlanType } from "./core/deadline";
 import { protections } from "./core/protections";
@@ -72,7 +72,7 @@ function badge(where: Where | undefined, ms?: number, label?: string) {
   const device = where === "on_device";
   return h("span", { class: `badge ${device ? "badge-device" : "badge-cloud"}` },
     h("span", { class: "badge-dot", "aria-hidden": "true" }),
-    label ?? (device ? "Read on this device · Gemini Nano" : `In the cloud · ${CLOUD_MODEL}`),
+    label ?? (device ? "Read on this device · Gemini Nano" : `In the cloud · ${cloudModel()}`),
     ms !== undefined ? h("span", { class: "badge-ms" }, ` ${(ms / 1000).toFixed(1)} s`) : null);
 }
 
@@ -303,7 +303,7 @@ function renderResults() {
 function factsCard(f: Facts) {
   const row = (k: string, v: string) => (v ? h("div", { class: "fact" }, h("dt", {}, k), h("dd", {}, v)) : null);
   return h("article", { class: "card" },
-    h("header", { class: "card-head" }, h("h2", {}, "What the letter says"), badge(state.factsWhere, state.factsMs, state.factsWhere === "on_device" ? undefined : `Masked, read in the cloud · ${CLOUD_MODEL}`)),
+    h("header", { class: "card-head" }, h("h2", {}, "What the letter says"), badge(state.factsWhere, state.factsMs, state.factsWhere === "on_device" ? undefined : `Masked, read in the cloud · ${cloudModel()}`)),
     h("dl", { class: "facts" },
       row("From", f.insurer), row("Plan", RULES[state.plan].label), row("Care", f.service), row("Given by", f.provider),
       row("Billed", f.amount_billed), row("Plan paid", f.plan_paid), row("You may owe", f.you_owe), row("Notice dated", f.notice_date)),
@@ -509,7 +509,7 @@ function renderLetter() {
       h("section", { class: "notes-col" },
         trackCard(area),
         h("article", { class: "card" },
-          h("header", { class: "card-head" }, h("h2", {}, "How it was written"), badge(state.draftWhere, state.draftMs, state.draftWhere === "on_device" ? `${navigator.onLine ? "Cloud unavailable" : "Offline"}, so drafted on this device · Gemini Nano` : `From masked text, in the cloud · ${CLOUD_MODEL}`)),
+          h("header", { class: "card-head" }, h("h2", {}, "How it was written"), badge(state.draftWhere, state.draftMs, state.draftWhere === "on_device" ? `${navigator.onLine ? "Cloud unavailable" : "Offline"}, so drafted on this device · Gemini Nano` : `From masked text, in the cloud · ${cloudModel()}`)),
           h("p", {}, state.draftWhere === "on_device"
             ? "Gemini Nano wrote it here, on this computer: nothing left the device."
             : "Gemini in the cloud saw only placeholders like [PATIENT_NAME]; your details were filled back in on this device."),

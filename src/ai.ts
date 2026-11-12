@@ -13,6 +13,7 @@
 
 import { initializeApp } from "firebase/app";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
+import { fetchAndActivate, getRemoteConfig, getValue } from "firebase/remote-config";
 import { getAI, getGenerativeModel, GoogleAIBackend, InferenceMode, type GenerativeModel, type LanguageModelCreateOptions } from "firebase/ai";
 import type { PlanType } from "./core/deadline";
 
@@ -26,7 +27,12 @@ const CONFIG = {
 };
 const deviceAI = getAI(initializeApp(CONFIG, "device"), { backend: new GoogleAIBackend() });
 
-export const CLOUD_MODEL = "gemini-3.5-flash-lite";
+// Cloud settings come from Firebase Remote Config, read when the cloud side is created (after the person's
+// yes), so the model and its limits can change without a new release. These are the built-in defaults.
+const DEFAULTS = { cloud_model: "gemini-3.5-flash-lite", cloud_patience_ms: 25_000, draft_temperature: 0.4 };
+let settings = { ...DEFAULTS };
+/** The cloud model in use: Remote Config's choice once the cloud side exists, the default before. */
+export const cloudModel = () => settings.cloud_model;
 const TEXT_IO: LanguageModelCreateOptions = { expectedInputs: [{ type: "text", languages: ["en"] }], expectedOutputs: [{ type: "text", languages: ["en"] }] };
 
 export type Where = "on_device" | "in_cloud";
@@ -119,7 +125,7 @@ export function readLetter(letter: string): Promise<Answer<Facts>> {
 // Browsers without Gemini Nano: the same reading, of the masked letter only, after the person has
 // seen it and agreed.
 export function readMaskedLetter(maskedLetter: string): Promise<Answer<Facts>> {
-  return timed(cloud().reader, READ_PROMPT + maskedLetter.slice(0, 12_000) + '\n"""', (t) => JSON.parse(t) as Facts);
+  return cloud().then((c) => timed(c.reader, READ_PROMPT + maskedLetter.slice(0, 12_000) + '\n"""', (t) => JSON.parse(t) as Facts));
 }
 
 // The person's own notes can name people the letter does not (a relative, a therapist), so they are
@@ -201,7 +207,9 @@ Letter:
 `;
 
 export function explain(maskedLetter: string, onDevice: boolean): Promise<Answer<Explanation>> {
-  return timed(onDevice ? deviceExplainer : cloud().explainer, EXPLAIN_PROMPT + maskedLetter.slice(0, 12_000) + '\n"""', (t) => JSON.parse(t) as Explanation);
+  const prompt = EXPLAIN_PROMPT + maskedLetter.slice(0, 12_000) + '\n"""';
+  const parse = (t: string) => JSON.parse(t) as Explanation;
+  return onDevice ? timed(deviceExplainer, prompt, parse) : cloud().then((c) => timed(c.explainer, prompt, parse));
 }
 
 // ---------- step 3: draft the appeal letter ----------
@@ -217,11 +225,35 @@ Rules:
 // ---------- the cloud side, created on consent ----------
 
 interface CloudSide { reader: GenerativeModel; explainer: GenerativeModel; drafter: GenerativeModel }
-let cloudSide: CloudSide | undefined;
+let cloudSide: Promise<CloudSide> | undefined;
 
 /** Builds the cloud models the first time they are needed, after the person's yes. */
-function cloud(): CloudSide {
-  if (cloudSide) return cloudSide;
+function cloud(): Promise<CloudSide> {
+  return (cloudSide ??= buildCloud());
+}
+
+/** Remote Config never holds up a draft: if it has not answered in 2.5 s, the defaults are used. */
+async function loadSettings(app: ReturnType<typeof initializeApp>) {
+  try {
+    const rc = getRemoteConfig(app);
+    rc.settings.minimumFetchIntervalMillis = 3_600_000;
+    rc.settings.fetchTimeoutMillis = 2_500;
+    rc.defaultConfig = DEFAULTS;
+    await Promise.race([fetchAndActivate(rc), new Promise((resolve) => setTimeout(resolve, 2_500))]);
+    const model = getValue(rc, "cloud_model").asString();
+    const patience = getValue(rc, "cloud_patience_ms").asNumber();
+    const temperature = getValue(rc, "draft_temperature").asNumber();
+    settings = {
+      cloud_model: /^gemini-[\w.-]+$/.test(model) ? model : DEFAULTS.cloud_model,
+      cloud_patience_ms: patience >= 5_000 && patience <= 120_000 ? patience : DEFAULTS.cloud_patience_ms,
+      draft_temperature: temperature >= 0 && temperature <= 1 ? temperature : DEFAULTS.draft_temperature,
+    };
+  } catch {
+    settings = { ...DEFAULTS };
+  }
+}
+
+async function buildCloud(): Promise<CloudSide> {
   const app = initializeApp(CONFIG, "cloud");
   const siteKey = import.meta.env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY;
   if (siteKey) {
@@ -230,19 +262,20 @@ function cloud(): CloudSide {
   }
   // Standard tokens: if attestation fails, App Check sends a placeholder token and the request is
   // judged by enforcement, instead of failing before it is sent (as limited-use tokens do).
+  await loadSettings(app);
   const ai = getAI(app, { backend: new GoogleAIBackend() });
+  const model = settings.cloud_model;
   const json = (schema: Record<string, unknown>, temperature: number) => ({ responseMimeType: "application/json", responseJsonSchema: schema, temperature });
-  cloudSide = {
-    reader: getGenerativeModel(ai, { mode: InferenceMode.ONLY_IN_CLOUD, inCloudParams: { model: CLOUD_MODEL, generationConfig: json(FACTS_SCHEMA, 0.1) } }),
-    explainer: getGenerativeModel(ai, { mode: InferenceMode.ONLY_IN_CLOUD, inCloudParams: { model: CLOUD_MODEL, generationConfig: json(EXPLAIN_SCHEMA, 0.3) } }),
+  return {
+    reader: getGenerativeModel(ai, { mode: InferenceMode.ONLY_IN_CLOUD, inCloudParams: { model, generationConfig: json(FACTS_SCHEMA, 0.1) } }),
+    explainer: getGenerativeModel(ai, { mode: InferenceMode.ONLY_IN_CLOUD, inCloudParams: { model, generationConfig: json(EXPLAIN_SCHEMA, 0.3) } }),
     drafter: getGenerativeModel(ai, {
       mode: InferenceMode.PREFER_IN_CLOUD,
       // Offline, Gemini Nano drafts instead; it gets the same rules as a system prompt.
       onDeviceParams: { createOptions: { ...TEXT_IO, initialPrompts: [{ role: "system", content: [{ type: "text", value: DRAFT_RULES }] }] } },
-      inCloudParams: { model: CLOUD_MODEL, generationConfig: { temperature: 0.4, maxOutputTokens: 1200 }, systemInstruction: DRAFT_RULES },
+      inCloudParams: { model, generationConfig: { temperature: settings.draft_temperature, maxOutputTokens: 1200 }, systemInstruction: DRAFT_RULES },
     }),
   };
-  return cloudSide;
 }
 
 export interface DraftInput {
@@ -261,13 +294,12 @@ const deviceDrafter: GenerativeModel = getGenerativeModel(deviceAI, {
   onDeviceParams: { createOptions: { ...TEXT_IO, initialPrompts: [{ role: "system", content: [{ type: "text", value: DRAFT_RULES }] }] } },
 });
 
-const CLOUD_PATIENCE_MS = 25_000;
-
 export async function draftAppeal(d: DraftInput): Promise<Answer<string>> {
   const prompt = draftPrompt(d);
   if (!navigator.onLine) return timed(deviceDrafter, prompt, plain);
-  const cloudTry = timed(cloud().drafter, prompt, plain);
-  const gaveUp = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), CLOUD_PATIENCE_MS));
+  const side = await cloud();
+  const cloudTry = timed(side.drafter, prompt, plain);
+  const gaveUp = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), settings.cloud_patience_ms));
   const first = await Promise.race([cloudTry, gaveUp]);
   if (first !== "timeout") return first;
   cloudTry.catch(() => {}); // it may still fail later; the device draft below is what counts now

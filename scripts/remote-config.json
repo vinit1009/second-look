@@ -1,0 +1,19 @@
+{
+  "parameters": {
+    "cloud_model": {
+      "defaultValue": { "value": "gemini-3.5-flash-lite" },
+      "description": "Gemini model for the cloud side (drafting from masked text, and reading or explaining for browsers without Gemini Nano).",
+      "valueType": "STRING"
+    },
+    "cloud_patience_ms": {
+      "defaultValue": { "value": "25000" },
+      "description": "How long a draft waits for the cloud before Gemini Nano writes it on the device instead.",
+      "valueType": "NUMBER"
+    },
+    "draft_temperature": {
+      "defaultValue": { "value": "0.4" },
+      "description": "Sampling temperature for cloud drafts.",
+      "valueType": "NUMBER"
+    }
+  }
+}
